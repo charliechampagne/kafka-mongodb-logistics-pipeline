@@ -1,0 +1,31 @@
+# =============================================================================
+# Core Dependencies
+# =============================================================================
+
+# Kafka client with Avro serialization support
+confluent-kafka[avro]==2.3.0
+
+# MongoDB driver with SRV support (for Atlas connection strings)
+pymongo[srv]==4.6.1
+
+# Data manipulation for CSV reading in the producer
+pandas==2.1.4
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# =============================================================================
+# API Dependencies
+# =============================================================================
+
+# Web framework for the REST API
+fastapi==0.109.0
+
+# ASGI server to run FastAPI
+uvicorn[standard]==0.27.0
+
+# =============================================================================
+# Development/Testing (optional, uncomment if needed)
+# =============================================================================
+# pytest==7.4.4
+# httpx==0.26.0  # For testing FastAPI endpoints
