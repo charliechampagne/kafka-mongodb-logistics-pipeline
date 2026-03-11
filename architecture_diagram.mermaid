@@ -1,0 +1,52 @@
+---
+title: Kafka-MongoDB Logistics Pipeline — Architecture
+---
+flowchart TB
+    subgraph Source["Stage 1: Data Source"]
+        CSV["📄 delivery_trip_truck_data.csv\n6,880 records | 32 columns"]
+    end
+
+    subgraph Producer["Stage 2: Kafka Producer"]
+        PD["🐍 kafka_producer.py\nPandas CSV Reader\nNaN/NULL Cleaning\nAvro Serialization"]
+    end
+
+    subgraph Kafka["Stage 3: Confluent Kafka Cloud"]
+        SR["📋 Schema Registry\nAvro Schema\n32 fields (all nullable)"]
+        TOPIC["📨 Topic: delivery_trip_truck\nKey: BookingID\nPartitions → Parallelism"]
+    end
+
+    subgraph Consumers["Stage 4: Kafka Consumers (Docker Scaled)"]
+        C1["🐳 Consumer 1\nPartitions 0-1"]
+        C2["🐳 Consumer 2\nPartitions 2-3"]
+        C3["🐳 Consumer 3\nPartitions 4-5"]
+    end
+
+    subgraph Validation["Stage 5: Data Validation"]
+        VAL["✅ 15 Business Rules\n5 ERROR rules\n10 WARNING rules"]
+    end
+
+    subgraph MongoDB["Stage 6: MongoDB Atlas"]
+        MAIN["🗄️ Collection:\ndelivery_trip_truck\n(clean, validated data)"]
+        DL["⚠️ Dead-Letter Collection:\ndelivery_trip_truck_dead_letter\n(rejected records + error metadata)"]
+    end
+
+    subgraph API["Stage 7: FastAPI REST API"]
+        EP["🌐 14 Endpoints\nTrips | Analytics | Data Quality\nSwagger UI at /docs\nPort 8000"]
+    end
+
+    CSV --> PD
+    PD -->|"Avro Serialized"| SR
+    SR --> TOPIC
+    TOPIC --> C1 & C2 & C3
+    C1 & C2 & C3 --> VAL
+    VAL -->|"Valid Records"| MAIN
+    VAL -->|"Invalid Records"| DL
+    MAIN --> EP
+
+    style Source fill:#e3f2fd,stroke:#1976d2
+    style Producer fill:#e8f5e9,stroke:#388e3c
+    style Kafka fill:#fff3e0,stroke:#f57c00
+    style Consumers fill:#f3e5f5,stroke:#7b1fa2
+    style Validation fill:#fce4ec,stroke:#c62828
+    style MongoDB fill:#e0f2f1,stroke:#00796b
+    style API fill:#ede7f6,stroke:#512da8
