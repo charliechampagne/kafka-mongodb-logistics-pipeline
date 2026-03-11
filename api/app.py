@@ -179,8 +179,8 @@ def get_trips(
 # =============================================================================
 # ENDPOINT 3: Get Trip by BookingID
 # =============================================================================
-@app.get("/trips/booking/{booking_id}", tags=["Trips"])
-def get_trip_by_booking(booking_id: str):
+@app.get("/trips/booking/{booking_id:path}")
+async def get_trips_by_booking(booking_id: str):
     """
     Retrieve all GPS records for a specific booking.
     USE-CASE: Tracking a specific shipment's journey, viewing its GPS trail.
