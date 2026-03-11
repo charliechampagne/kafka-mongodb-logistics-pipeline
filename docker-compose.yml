@@ -1,0 +1,98 @@
+# =============================================================================
+# docker-compose.yml — Multi-Container Orchestration
+# =============================================================================
+#
+# WHAT IS DOCKER COMPOSE?
+#   Docker Compose lets you define and run multiple Docker containers as a
+#   single "application." Instead of running separate docker commands for
+#   the consumer and API, you define them here and manage them together.
+#
+# WHY WE USE IT:
+#   1. One command to start everything: docker-compose up
+#   2. One command to scale consumers: docker-compose up --scale consumer=3
+#   3. All services share the same .env file for configuration.
+#   4. Containers can communicate with each other by service name.
+#
+# ARCHITECTURE:
+#   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+#   │  consumer-1  │    │  consumer-2  │    │  consumer-3  │
+#   │  (partition   │    │  (partition   │    │  (partition   │
+#   │   0,1)       │    │   2,3)       │    │   4,5)       │
+#   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+#          │                   │                   │
+#          └───────────────────┼───────────────────┘
+#                              │
+#                    ┌─────────┴──────────┐
+#                    │   MongoDB Atlas     │
+#                    │   (cloud hosted)    │
+#                    └─────────┬──────────┘
+#                              │
+#                    ┌─────────┴──────────┐
+#                    │    API Service      │
+#                    │   (port 8000)       │
+#                    └────────────────────┘
+#
+# USAGE:
+#   docker-compose up                          # Start all services
+#   docker-compose up --scale consumer=3       # Start with 3 consumer instances
+#   docker-compose up -d                       # Start in background (detached)
+#   docker-compose down                        # Stop and remove all containers
+#   docker-compose logs -f consumer            # Follow consumer logs
+#   docker-compose ps                          # List running containers
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Kafka Consumer Service
+  # ---------------------------------------------------------------------------
+  # This is the main service that reads from Kafka and writes to MongoDB.
+  # You can scale it horizontally to process messages faster:
+  #   docker-compose up --scale consumer=3
+  #
+  # HOW SCALING WORKS:
+  #   All consumer instances use the same group.id ('logistics-consumer-group').
+  #   Kafka's consumer group protocol automatically distributes the topic's
+  #   partitions among the running instances. If the topic has 6 partitions
+  #   and you run 3 consumers, each consumer gets 2 partitions.
+  #
+  # IMPORTANT: You cannot have more consumers than partitions. Extra consumers
+  #   will sit idle. Check your topic's partition count in Confluent Cloud.
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: on-failure    # Restart if the consumer crashes (transient errors)
+    deploy:
+      resources:
+        limits:
+          memory: 512M     # Cap memory to prevent runaway consumption
+          cpus: '0.5'      # Half a CPU core per consumer instance
+
+  # ---------------------------------------------------------------------------
+  # REST API Service
+  # ---------------------------------------------------------------------------
+  # Serves the FastAPI application for querying MongoDB data.
+  # Accessible at http://localhost:8000/docs for the Swagger UI.
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"        # Map container port 8000 to host port 8000
+    restart: on-failure
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
